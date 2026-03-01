@@ -61,7 +61,7 @@ namespace SharpGrip.FluentValidation.AutoValidation.Mvc.Filters
                         var hasAutoValidateAlwaysAttribute = parameterInfo?.HasCustomAttribute<AutoValidateAlwaysAttribute>() ?? false;
                         var hasAutoValidateNeverAttribute = parameterInfo?.HasCustomAttribute<AutoValidateNeverAttribute>() ?? false;
 
-                        if (subject != null && parameterType != null && parameterType.IsCustomType() && !hasAutoValidateNeverAttribute && (hasAutoValidateAlwaysAttribute || HasValidBindingSource(bindingSource)) && serviceProvider.GetValidator(parameterType) is IValidator validator)
+                        if (subject != null && parameterType != null && parameterType.IsCustomType() && !hasAutoValidateNeverAttribute && (hasAutoValidateAlwaysAttribute || HasValidBindingSource(bindingSource)) && serviceProvider.GetValidator(parameterType, false) is IValidator validator)
                         {
                             logger.LogDebug("Validating parameter '{Parameter}' of type '{Type}' for action '{Action}' on controller '{Controller}'.", parameter.Name, parameterType.Name, controllerActionDescriptor.ActionName, controllerActionDescriptor.ControllerName);
 
