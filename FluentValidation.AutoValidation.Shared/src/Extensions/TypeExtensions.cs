@@ -7,26 +7,26 @@ namespace SharpGrip.FluentValidation.AutoValidation.Shared.Extensions
 {
     public static class TypeExtensions
     {
+        private static readonly HashSet<Type> builtInTypes =
+        [
+            typeof(string),
+            typeof(decimal),
+            typeof(DateTime),
+            typeof(DateTimeOffset),
+            typeof(TimeSpan),
+            typeof(DateOnly),
+            typeof(TimeOnly),
+            typeof(Uri),
+            typeof(Guid),
+            typeof(Enum)
+        ];
+        
         public static bool IsCustomType(this Type? type)
         {
             if (type == null || type.IsEnum || type.IsPrimitive)
             {
                 return false;
             }
-
-            var builtInTypes = new HashSet<Type>
-            {
-                typeof(string),
-                typeof(decimal),
-                typeof(DateTime),
-                typeof(DateTimeOffset),
-                typeof(TimeSpan),
-                typeof(DateOnly),
-                typeof(TimeOnly),
-                typeof(Uri),
-                typeof(Guid),
-                typeof(Enum)
-            };
 
             if (builtInTypes.Contains(type))
             {
