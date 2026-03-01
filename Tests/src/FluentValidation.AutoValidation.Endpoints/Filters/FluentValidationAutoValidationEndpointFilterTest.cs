@@ -10,9 +10,12 @@ using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using SharpGrip.FluentValidation.AutoValidation.Endpoints.Configuration;
 using SharpGrip.FluentValidation.AutoValidation.Endpoints.Filters;
 using SharpGrip.FluentValidation.AutoValidation.Endpoints.Interceptors;
+using SharpGrip.FluentValidation.AutoValidation.Tests.Shared.Stubs;
 using Xunit;
 
 namespace SharpGrip.FluentValidation.AutoValidation.Tests.FluentValidation.AutoValidation.Endpoints.Filters;
@@ -32,6 +35,8 @@ public class FluentValidationAutoValidationEndpointFilterTest
         var logger = Substitute.For<ILogger<FluentValidationAutoValidationEndpointFilter>>();
         var serviceProvider = Substitute.For<IServiceProvider>();
         var endpointFilterInvocationContext = Substitute.For<EndpointFilterInvocationContext>();
+        var configuration = Substitute.For<IOptions<AutoValidationEndpointsConfiguration>>(); 
+        configuration.Value.Returns(new AutoValidationEndpointsConfiguration());
 
         endpointFilterInvocationContext.HttpContext.Returns(new DefaultHttpContext {RequestServices = serviceProvider});
         endpointFilterInvocationContext.Arguments.Returns(new List<object?> {new TestModel {Parameter1 = "Value 1", Parameter2 = "Value 2", Parameter3 = "Value 3"}});
@@ -40,7 +45,7 @@ public class FluentValidationAutoValidationEndpointFilterTest
 
         var validationFailuresValues = ValidationFailures.Values.ToList();
 
-        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger);
+        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger, configuration);
 
         var result = (ValidationProblem) (await endpointFilter.InvokeAsync(endpointFilterInvocationContext, _ => ValueTask.FromResult(new object())!))!;
         var problemDetailsErrorValues = result.ProblemDetails.Errors.ToList();
@@ -56,18 +61,68 @@ public class FluentValidationAutoValidationEndpointFilterTest
         var logger = Substitute.For<ILogger<FluentValidationAutoValidationEndpointFilter>>();
         var serviceProvider = Substitute.For<IServiceProvider>();
         var endpointFilterInvocationContext = Substitute.For<EndpointFilterInvocationContext>();
+        var configuration = Substitute.For<IOptions<AutoValidationEndpointsConfiguration>>(); 
+        configuration.Value.Returns(new AutoValidationEndpointsConfiguration());
 
         endpointFilterInvocationContext.HttpContext.Returns(new DefaultHttpContext {RequestServices = serviceProvider});
         endpointFilterInvocationContext.Arguments.Returns(new List<object?> {new TestModel {Parameter1 = "Value 1", Parameter2 = "Value 2", Parameter3 = "Value 3"}});
         serviceProvider.GetService(typeof(IValidator<>).MakeGenericType(typeof(TestModel))).Returns(null);
         serviceProvider.GetService(typeof(IGlobalValidationInterceptor)).Returns(null);
 
-        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger);
+        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger, configuration);
 
         var result = await endpointFilter.InvokeAsync(endpointFilterInvocationContext, _ => ValueTask.FromResult(new object())!);
 
         Assert.IsType<object>(result);
     }
+    
+    [Fact]
+    public async Task TestInvokeAsync_BaseTypeValidatorNotFound()
+    {
+        var logger = Substitute.For<ILogger<FluentValidationAutoValidationEndpointFilter>>();
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        var endpointFilterInvocationContext = Substitute.For<EndpointFilterInvocationContext>();
+        var configuration = Substitute.For<IOptions<AutoValidationEndpointsConfiguration>>(); 
+        configuration.Value.Returns(new AutoValidationEndpointsConfiguration());
+
+        endpointFilterInvocationContext.HttpContext.Returns(new DefaultHttpContext {RequestServices = serviceProvider});
+        endpointFilterInvocationContext.Arguments.Returns(new List<object?> {new CreatePostRequest()});
+        serviceProvider.GetService(typeof(IValidator<>).MakeGenericType(typeof(CreatePostRequest))).Returns(null);
+        serviceProvider.GetService(typeof(IValidator<>).MakeGenericType(typeof(ICreatePost))).Returns(new CreatePostValidator());
+        serviceProvider.GetService(typeof(IGlobalValidationInterceptor)).Returns(null);
+
+        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger, configuration);
+
+        var result = await endpointFilter.InvokeAsync(endpointFilterInvocationContext, _ => ValueTask.FromResult(new object())!);
+
+        Assert.IsType<object>(result);
+    } 
+    
+    [Fact]
+    public async Task TestInvokeAsync_BaseTypeValidatorFound()
+    {
+        var logger = Substitute.For<ILogger<FluentValidationAutoValidationEndpointFilter>>();
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        var endpointFilterInvocationContext = Substitute.For<EndpointFilterInvocationContext>();
+        var configuration = Substitute.For<IOptions<AutoValidationEndpointsConfiguration>>(); 
+        configuration.Value.Returns(new AutoValidationEndpointsConfiguration().WithBaseTypeValidations());
+
+        endpointFilterInvocationContext.HttpContext.Returns(new DefaultHttpContext {RequestServices = serviceProvider});
+        endpointFilterInvocationContext.Arguments.Returns(new List<object?> {new CreatePostRequest()});
+        serviceProvider.GetService(typeof(IValidator<>).MakeGenericType(typeof(CreatePostRequest))).Returns(null);
+        serviceProvider.GetService(typeof(IValidator<>).MakeGenericType(typeof(ICreatePost))).Returns(new CreatePostValidator());
+        serviceProvider.GetService(typeof(IGlobalValidationInterceptor)).Returns(new GlobalValidationInterceptor());
+
+        var endpointFilter = new FluentValidationAutoValidationEndpointFilter(logger, configuration);
+
+        var result = await endpointFilter.InvokeAsync(endpointFilterInvocationContext, _ => ValueTask.FromResult<object?>(new object()));
+        Assert.IsType<ValidationProblem>(result, false);
+        var problem = result as ValidationProblem;
+        var problemDetailsErrorValues = problem.ProblemDetails.Errors.ToList();
+        
+        Assert.Contains(problemDetailsErrorValues, x => x.Value.Contains("Title cannot be null or empty."));
+        Assert.Contains(problemDetailsErrorValues, x => x.Value.Contains("Body cannot be null or empty."));
+    }     
 
     private class TestModel
     {
